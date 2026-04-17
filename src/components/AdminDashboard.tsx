@@ -637,8 +637,8 @@ function BrandingItem({ label, value, onSave }: { label: string; value: string; 
         <div className="relative rounded-xl overflow-hidden border border-outline-variant/10 aspect-video bg-surface-variant/10 flex items-center justify-center">
           {isImage ? (
             <img 
-              key={val} 
-              src={val} 
+              key={val + Date.now()} 
+              src={val + (val.includes('?') ? '&' : '?') + 't=' + Date.now()} 
               className="w-full h-full object-cover" 
               referrerPolicy="no-referrer"
               onError={(e) => console.error(`Preview failed to load: ${val}`, e)}
@@ -736,7 +736,12 @@ function EditForm({ item, onSave, onCancel }: { item: any; onSave: (updates: any
       <div className="flex items-center gap-4 mb-2">
         <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-outline-variant/20 bg-surface-variant/10">
           {imageUrl ? (
-            <img key={imageUrl} src={imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <img 
+              key={imageUrl + Date.now()} 
+              src={imageUrl + (imageUrl.includes('?') ? '&' : '?') + 't=' + Date.now()} 
+              className="w-full h-full object-cover" 
+              referrerPolicy="no-referrer" 
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-on-surface-variant">
               <ImageIcon className="w-6 h-6" />
