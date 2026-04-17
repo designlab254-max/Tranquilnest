@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { pool } from '../db.js';
+import { pool } from '../db.js'; // Ensure path matches flattened structure
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { filename } = req.query;
@@ -23,3 +23,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(500).send('Server Error');
   }
 }
+ 
