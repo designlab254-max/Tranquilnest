@@ -1,26 +1,36 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { pool } from '../db.js'; // Ensure path matches flattened structure
+import multer from 'multer';
+import { pool } from './db.js';
+import path from 'path';
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+export const config = { api: { bodyParser: false } };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { filename } = req.query;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  await new Promise<void>((resolve, reject) => {
+    upload.single('image')(req as any, res as any, (err: any) => err ? reject(err) : resolve());
+  });
+
+  const file = (req as any).file;
+  if (!file) return res.status(400).json({ error: 'No file' });
 
   try {
-    const result = await pool.query('SELECT mime_type, data FROM uploaded_files WHERE filename = $1', [filename]);
-    if (result.rows.length === 0) {
-      return res.status(404).send('Not found');
-    }
+    // Force a simple query first to ensure the DB allows writing
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const filename = uniqueSuffix + path.extname(file.originalname);
     
-    const file = result.rows[0];
-    res.setHeader('Content-Type', file.mime_type);
-    res.setHeader('Cache-Control', 'public, max-age=31536000');
-    res.send(file.data);
+    // Using buffer directly
+    await pool.query(
+      'INSERT INTO uploaded_files (filename, mime_type, data) VALUES ($1, $2, $3)',
+      [filename, file.mimetype, file.buffer]
+    );
+    
+    res.json({ imageUrl: `/uploads/${filename}` });
   } catch (err) {
-    console.error('Failed to serve image:', err);
-    res.status(500).send('Server Error');
+    console.error('CRITICAL UPLOAD ERROR:', err);
+    res.status(500).json({ error: 'DB Insert Failed', details: String(err) });
   }
 }
- 
