@@ -1,57 +1,25 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import multer from 'multer';
-import { pool } from './db.js';
-import path from 'path';
-
-// Define the upload configuration with explicit memory storage
-const upload = multer({ 
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 } 
-});
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+import { pool } from '../db.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
+  const { filename } = req.query;
+
+  if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // 1. Run Multer
-    await new Promise<void>((resolve, reject) => {
-      upload.single('image')(req as any, res as any, (err: any) => {
-        if (err) return reject(err);
-        resolve();
-      });
-    });
-
-    const file = (req as any).file;
-    if (!file) {
-      return res.status(400).json({ error: 'No file received' });
+    const result = await pool.query('SELECT mime_type, data FROM uploaded_files WHERE filename = $1', [filename]);
+    if (result.rows.length === 0) {
+      return res.status(404).send('Not found');
     }
-
-    // 2. Prepare Database
-    const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
-
-    // 3. Insert into Database
-    await pool.query(
-      'INSERT INTO uploaded_files (filename, mime_type, data) VALUES ($1, $2, $3)',
-      [filename, file.mimetype, file.buffer]
-    );
-
-    // 4. Send success
-    return res.status(200).json({ imageUrl: `/uploads/${filename}` });
-
+    
+    const file = result.rows[0];
+    res.setHeader('Content-Type', file.mime_type);
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.send(file.data);
   } catch (err) {
-    // If the server crashes here, the browser WILL get a 500 error response
-    console.error('SERVER-SIDE UPLOAD ERROR:', err);
-    return res.status(500).json({ 
-      error: 'Upload aborted', 
-      details: err instanceof Error ? err.message : 'Unknown error' 
-    });
+    console.error('Failed to serve image:', err);
+    res.status(500).send('Server Error');
   }
 }
